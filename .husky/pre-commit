@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run lint-staged (ESLint security checks on staged files only)
+npx lint-staged
+
+# Check for known vulnerabilities in dependencies
+echo "🔍 Running npm audit..."
+npm audit --audit-level=high
+if [ $? -ne 0 ]; then
+  echo "❌ npm audit found high/critical vulnerabilities. Commit aborted."
+  exit 1
+fi
+echo "✅ No high/critical vulnerabilities found."

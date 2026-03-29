@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { useAppContext } from '../context/AppContext';
 import ListSection from '../components/ListSection';
 import ListItem from '../components/ListItem';
-import Badge from '../components/Badge';
-import { Camera, X, Trash2, Camera as CameraIcon, History, Package, Box } from 'lucide-react-native';
+import { X, Trash2, Camera as CameraIcon, Package } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 
@@ -21,7 +20,7 @@ export default function WasteScreen() {
   const { products, addWasteLog, wasteLogs, weatherContext } = useAppContext();
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<any>(null);
+  const [selectedProduct, setSelectedProduct] = useState<typeof products[number] | null>(null);
   const [qty, setQty] = useState(1);
   const [reasonId, setReasonId] = useState<string | null>(null);
 

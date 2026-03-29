@@ -6,7 +6,7 @@ import { useAppContext } from '../context/AppContext';
 import ListSection from '../components/ListSection';
 import ListItem from '../components/ListItem';
 import Badge from '../components/Badge';
-import { BarChart2, Shield, TrendingDown, Star, Package, Activity } from 'lucide-react-native';
+import { Shield, Star, Package, Activity } from 'lucide-react-native';
 import { calculateSyncRate } from '../logic/LearningEngine';
 
 export default function AnalysisScreen() {
@@ -25,6 +25,8 @@ export default function AnalysisScreen() {
       const startOfYear = new Date(d.getFullYear(), 0, 1);
       const week = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
       const key = `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+      // key is a computed date string from internal log data — not user input.
+      // eslint-disable-next-line security/detect-object-injection
       buckets[key] = (buckets[key] || 0) + l.lossYen;
     });
     return Object.entries(buckets)
@@ -95,7 +97,7 @@ export default function AnalysisScreen() {
           <Text style={styles.sectionTitle}>週次ロス推移</Text>
           <View style={styles.trendCard}>
             <View style={styles.trendChart}>
-              {weeklyTrend.map((w, i) => (
+              {weeklyTrend.map((w, _i) => (
                 <View key={i} style={styles.trendCol}>
                   <View style={styles.trendBarWrapper}>
                     <View
@@ -146,7 +148,7 @@ export default function AnalysisScreen() {
       {/* Waste Analysis */}
       <Text style={styles.sectionTitle}>商品別廃棄分析</Text>
 
-      {analysisData.map((p, index) => {
+      {analysisData.map((p, _index) => {
         const isSelected = selectedProductId === p.id;
 
         return (

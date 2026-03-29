@@ -3,18 +3,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Product, WasteLog, ActualOrder, calculateContextualFactors, ContextualFactor, SAMPLE_PRODUCTS, SAMPLE_LOGS } from '../logic/LearningEngine';
 import { getCurrentLocationWeather, WeatherType, WEATHER_TYPES } from '../logic/WeatherService';
 
+interface StoreConfig {
+  name: string;
+  setupDone: boolean;
+}
+
 interface AppContextProps {
   products: Product[];
   wasteLogs: WasteLog[];
   actualOrders: ActualOrder[];
-  storeConfig: any;
-  weatherContext: { dayId: string; weatherId: string; weather?: WeatherType; dayType?: any };
+  storeConfig: StoreConfig;
+  weatherContext: { dayId: string; weatherId: string; weather?: WeatherType; dayType?: { id: string; label: string } };
   contextualFactors: Record<number, ContextualFactor>;
   apiStatus: 'loading' | 'success' | 'error' | 'manual';
 
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setWasteLogs: React.Dispatch<React.SetStateAction<WasteLog[]>>;
-  setStoreConfig: React.Dispatch<React.SetStateAction<any>>;
+  setStoreConfig: React.Dispatch<React.SetStateAction<StoreConfig>>;
   setWeatherId: (id: string) => void;
   refreshWeather: () => Promise<void>;
   addWasteLog: (log: Omit<WasteLog, 'id'>) => Promise<void>;
@@ -39,7 +44,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
   const [actualOrders, setActualOrders] = useState<ActualOrder[]>([]);
-  const [storeConfig, setStoreConfig] = useState({ name: '○○店', setupDone: false });
+  const [storeConfig, setStoreConfig] = useState<StoreConfig>({ name: '○○店', setupDone: false });
   const [weatherId, setWeatherStateId] = useState('cloudy');
   const [apiStatus, setApiStatus] = useState<'loading' | 'success' | 'error' | 'manual'>('loading');
   const [isReady, setIsReady] = useState(false);

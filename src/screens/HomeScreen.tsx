@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
@@ -35,8 +35,11 @@ export default function HomeScreen() {
   const displayProducts = filter === 'key' ? products.filter(p => p.isKeyItem) : products;
 
   // Resolve effective quantity: user adjustment if set, otherwise AI recommendation
+  // Keys are numeric product IDs from internal state — not user input.
   const effectiveQty = (productId: number): number => {
+    // eslint-disable-next-line security/detect-object-injection
     if (adjustments[productId] !== undefined) return adjustments[productId];
+    // eslint-disable-next-line security/detect-object-injection
     return contextualFactors[productId]?.recommended || products.find(p => p.id === productId)?.baseOrder || 0;
   };
 
@@ -51,10 +54,12 @@ export default function HomeScreen() {
 
   const adjust = (productId: number, delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setAdjustments(prev => ({
-      ...prev,
-      [productId]: Math.max(0, (prev[productId] ?? (contextualFactors[productId]?.recommended || 0)) + delta),
-    }));
+    setAdjustments(prev => {
+      // productId is a numeric internal ID — not user-controlled input.
+      // eslint-disable-next-line security/detect-object-injection
+      const current = prev[productId] ?? (contextualFactors[productId]?.recommended || 0);
+      return { ...prev, [productId]: Math.max(0, current + delta) };
+    });
   };
 
   const handleConfirm = async () => {
@@ -169,7 +174,6 @@ export default function HomeScreen() {
             const cf = contextualFactors[p.id];
             const aiQty = cf?.recommended || p.baseOrder;
             const qty = effectiveQty(p.id);
-            const diff = qty - p.baseOrder;
             const isAdjusted = adjustments[p.id] !== undefined && adjustments[p.id] !== aiQty;
 
             return (

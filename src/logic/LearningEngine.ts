@@ -128,6 +128,8 @@ export const calculateContextualFactors = (
     const saving = Math.round(lossYen / Math.max(recent14.length, 1) * 30 * Math.max(0, 1 - finalFactor) * 0.6);
 
     const dayBreakdown = DOW_LABELS.map((label, i) => {
+      // i is a bounded array index (0-6) — not user input.
+      // eslint-disable-next-line security/detect-object-injection
       const dayId = DAY_IDS[i];
       const matchLogs = allLogs.filter(l => l.dayId === dayId);
       return {
