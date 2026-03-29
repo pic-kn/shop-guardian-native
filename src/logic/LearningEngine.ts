@@ -1,3 +1,22 @@
+export interface ActualOrder {
+  id: number;
+  date: string;
+  productId: number;
+  aiRecommended: number;
+  actualQty: number;
+  dayId: string;
+  weatherId: string;
+}
+
+export const calculateSyncRate = (actualOrders: ActualOrder[]): number => {
+  if (actualOrders.length === 0) return 100;
+  const diffs = actualOrders.map(o =>
+    Math.abs(o.actualQty - o.aiRecommended) / Math.max(o.aiRecommended, 1)
+  );
+  const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+  return Math.round(Math.max(0, (1 - avgDiff) * 100));
+};
+
 export interface Product {
   id: number;
   jan: string;
@@ -109,6 +128,8 @@ export const calculateContextualFactors = (
     const saving = Math.round(lossYen / Math.max(recent14.length, 1) * 30 * Math.max(0, 1 - finalFactor) * 0.6);
 
     const dayBreakdown = DOW_LABELS.map((label, i) => {
+      // i is a bounded array index (0-6) — not user input.
+      // eslint-disable-next-line security/detect-object-injection
       const dayId = DAY_IDS[i];
       const matchLogs = allLogs.filter(l => l.dayId === dayId);
       return {

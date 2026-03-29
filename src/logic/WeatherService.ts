@@ -8,24 +8,27 @@ export interface WeatherType {
   wmoCodes: number[];
 }
 
+// Weather factors tuned to convenience-store foot traffic patterns.
+// Sunny days boost impulse buying (+12%); heavy rain/storms sharply cut visits.
 export const WEATHER_TYPES: WeatherType[] = [
-  { id: "sunny", label: "晴れ", icon: "Sun", factor: 1.10, wmoCodes: [0, 1] },
+  { id: "sunny", label: "晴れ", icon: "Sun", factor: 1.12, wmoCodes: [0, 1] },
   { id: "cloudy", label: "曇り", icon: "Cloud", factor: 1.00, wmoCodes: [2, 3] },
-  { id: "rainy", label: "小雨", icon: "CloudRain", factor: 0.88, wmoCodes: [51, 53, 55, 61, 63, 80, 81] },
-  { id: "heavy", label: "大雨", icon: "CloudRain", factor: 0.72, wmoCodes: [65, 82] },
-  { id: "snow", label: "雪", icon: "CloudSnow", factor: 0.75, wmoCodes: [71, 73, 75, 77, 85, 86] },
-  { id: "storm", label: "嵐", icon: "CloudLightning", factor: 0.60, wmoCodes: [95, 96, 99] },
-  { id: "fog", label: "霧", icon: "Cloud", factor: 0.82, wmoCodes: [45, 48] },
+  { id: "rainy", label: "小雨", icon: "CloudRain", factor: 0.85, wmoCodes: [51, 53, 55, 61, 63, 80, 81] },
+  { id: "heavy", label: "大雨", icon: "CloudRain", factor: 0.70, wmoCodes: [65, 82] },
+  { id: "snow", label: "雪", icon: "CloudSnow", factor: 0.73, wmoCodes: [71, 73, 75, 77, 85, 86] },
+  { id: "storm", label: "嵐", icon: "CloudLightning", factor: 0.58, wmoCodes: [95, 96, 99] },
+  { id: "fog", label: "霧", icon: "Cloud", factor: 0.80, wmoCodes: [45, 48] },
 ];
 
+// Day-of-week factors: office-area stores see Friday peaks; Sunday dips.
 export const DAY_TYPES = [
-  { id: "sun", label: "日", factor: 0.88 },
+  { id: "sun", label: "日", factor: 0.85 },
   { id: "mon", label: "月", factor: 0.95 },
-  { id: "tue", label: "火", factor: 0.95 },
+  { id: "tue", label: "火", factor: 0.97 },
   { id: "wed", label: "水", factor: 1.00 },
-  { id: "thu", label: "木", factor: 1.00 },
-  { id: "fri", label: "金", factor: 1.15 },
-  { id: "sat", label: "土", factor: 0.90 },
+  { id: "thu", label: "木", factor: 1.02 },
+  { id: "fri", label: "金", factor: 1.18 },
+  { id: "sat", label: "土", factor: 0.92 },
   { id: "hol", label: "祝", factor: 1.20 },
 ];
 

@@ -6,20 +6,50 @@ import { useAppContext } from '../context/AppContext';
 import ListSection from '../components/ListSection';
 import ListItem from '../components/ListItem';
 import Badge from '../components/Badge';
-import { BarChart2, Shield, TrendingDown, Star, Package } from 'lucide-react-native';
+import { Shield, Star, Package, Activity } from 'lucide-react-native';
+import { calculateSyncRate } from '../logic/LearningEngine';
 
 export default function AnalysisScreen() {
-  const { products, contextualFactors } = useAppContext();
+  const { products, contextualFactors, wasteLogs, actualOrders } = useAppContext();
   const [selectedProductId, setSelectedProductId] = useState<number | null>(null);
 
   const totalSaving = Object.values(contextualFactors).reduce((sum, f) => sum + (f.saving || 0), 0);
-  
+  const syncRate = calculateSyncRate(actualOrders.slice(0, 30));
+
+  // Build per-week saving trend from wasteLogs (most recent 8 weeks)
+  const weeklyTrend = (() => {
+    const buckets: Record<string, number> = {};
+    wasteLogs.forEach(l => {
+      const d = new Date(l.date);
+      // ISO week key: YYYY-Www
+      const startOfYear = new Date(d.getFullYear(), 0, 1);
+      const week = Math.ceil(((d.getTime() - startOfYear.getTime()) / 86400000 + startOfYear.getDay() + 1) / 7);
+      const key = `${d.getFullYear()}-W${String(week).padStart(2, '0')}`;
+      // key is a computed date string from internal log data — not user input.
+      // eslint-disable-next-line security/detect-object-injection
+      buckets[key] = (buckets[key] || 0) + l.lossYen;
+    });
+    return Object.entries(buckets)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .slice(-8)
+      .map(([week, loss]) => ({ week: week.slice(-3), loss }));
+  })();
+
+  const maxLoss = Math.max(...weeklyTrend.map(w => w.loss), 1);
+
+  // Per-product sync rate
+  const productSyncRates = products.map(p => {
+    const pOrders = actualOrders.filter(o => o.productId === p.id);
+    const rate = calculateSyncRate(pOrders);
+    return { ...p, syncRate: rate, orderCount: pOrders.length };
+  }).sort((a, b) => a.syncRate - b.syncRate);
+
   const analysisData = products.map(p => {
     const cf = contextualFactors[p.id];
     const wr = cf?.baseWasteRate || 0;
     let pattern = '適正';
     let patternColor = colors.success;
-    
+
     if (wr > 0.20) {
       pattern = '過剰発注';
       patternColor = colors.danger;
@@ -27,7 +57,7 @@ export default function AnalysisScreen() {
       pattern = '要注意';
       patternColor = colors.warning;
     }
-    
+
     return { ...p, wasteRate: wr, pattern, patternColor, cf };
   }).sort((a, b) => b.wasteRate - a.wasteRate);
 
@@ -39,25 +69,91 @@ export default function AnalysisScreen() {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Monthly Saving Summary */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryInfo}>
-          <Text style={typography.caption}>文脈学習AI 月間削減見込</Text>
+      {/* Summary KPIs */}
+      <View style={styles.kpiRow}>
+        <View style={[styles.kpiCard, { flex: 2 }]}>
+          <View style={styles.kpiHeader}>
+            <Shield size={16} color={colors.textSecondary} />
+            <Text style={[typography.caption, { marginLeft: 6 }]}>月間削減見込</Text>
+          </View>
           <Text style={[typography.h1, { color: colors.success, marginTop: 4 }]}>
             ¥{totalSaving.toLocaleString()}
           </Text>
         </View>
-        <Shield size={32} color={colors.textSecondary} strokeWidth={1} />
+        <View style={[styles.kpiCard, { flex: 1 }]}>
+          <View style={styles.kpiHeader}>
+            <Activity size={16} color={colors.textSecondary} />
+            <Text style={[typography.caption, { marginLeft: 6 }]}>AI同期率</Text>
+          </View>
+          <Text style={[typography.h1, { color: syncRate >= 80 ? colors.success : colors.warning, marginTop: 4 }]}>
+            {syncRate}%
+          </Text>
+        </View>
       </View>
 
+      {/* Weekly Loss Trend */}
+      {weeklyTrend.length > 0 && (
+        <>
+          <Text style={styles.sectionTitle}>週次ロス推移</Text>
+          <View style={styles.trendCard}>
+            <View style={styles.trendChart}>
+              {weeklyTrend.map((w, _i) => (
+                <View key={i} style={styles.trendCol}>
+                  <View style={styles.trendBarWrapper}>
+                    <View
+                      style={[
+                        styles.trendBar,
+                        {
+                          height: `${Math.round((w.loss / maxLoss) * 100)}%`,
+                          backgroundColor: colors.warning,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text style={styles.chartLabel}>{w.week}</Text>
+                </View>
+              ))}
+            </View>
+            <Text style={[typography.caption, { textAlign: 'right', marginTop: 4 }]}>
+              直近{weeklyTrend.length}週のロス金額（円）
+            </Text>
+          </View>
+        </>
+      )}
+
+      {/* Per-product sync rate */}
+      <Text style={styles.sectionTitle}>商品別 AI同期率</Text>
+      <ListSection>
+        {productSyncRates.map((p, i) => (
+          <ListItem
+            key={p.id}
+            icon={Package}
+            title={p.name}
+            subtitle={`実績${p.orderCount}件`}
+            isLast={i === productSyncRates.length - 1}
+            rightComponent={
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={[typography.h3, {
+                  color: p.syncRate >= 80 ? colors.success : p.syncRate >= 60 ? colors.warning : colors.danger,
+                }]}>
+                  {p.orderCount > 0 ? `${p.syncRate}%` : '—'}
+                </Text>
+                <Text style={typography.caption}>同期率</Text>
+              </View>
+            }
+          />
+        ))}
+      </ListSection>
+
+      {/* Waste Analysis */}
       <Text style={styles.sectionTitle}>商品別廃棄分析</Text>
-      
-      {analysisData.map((p, index) => {
+
+      {analysisData.map((p, _index) => {
         const isSelected = selectedProductId === p.id;
-        
+
         return (
-          <TouchableOpacity 
-            key={p.id} 
+          <TouchableOpacity
+            key={p.id}
             activeOpacity={0.8}
             onPress={() => setSelectedProductId(isSelected ? null : p.id)}
             style={[styles.itemCard, isSelected && styles.itemCardSelected]}
@@ -89,8 +185,7 @@ export default function AnalysisScreen() {
               <View style={styles.detailsContainer}>
                 <View style={styles.divider} />
                 <Text style={[typography.caption, { marginBottom: 8 }]}>曜日別廃棄トレンド</Text>
-                
-                {/* Minimalist Bar Chart */}
+
                 <View style={styles.chartArea}>
                   {p.cf.dayBreakdown.map((d, i) => (
                     <View key={i} style={styles.chartCol}>
@@ -127,18 +222,19 @@ export default function AnalysisScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  summaryCard: {
-    backgroundColor: colors.surface,
-    margin: 16,
-    padding: 20,
-    borderRadius: 16,
+  kpiRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    margin: 16,
+    gap: 12,
+  },
+  kpiCard: {
+    backgroundColor: colors.surface,
+    padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
-  summaryInfo: { flex: 1 },
+  kpiHeader: { flexDirection: 'row', alignItems: 'center' },
   sectionTitle: {
     fontSize: 12,
     fontWeight: '600',
@@ -148,6 +244,32 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     textTransform: 'uppercase',
   },
+  trendCard: {
+    backgroundColor: colors.surface,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.borderSubtle,
+  },
+  trendChart: {
+    flexDirection: 'row',
+    height: 80,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+  },
+  trendCol: { flex: 1, alignItems: 'center' },
+  trendBarWrapper: {
+    flex: 1,
+    width: 20,
+    backgroundColor: colors.background,
+    borderRadius: 4,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+    marginBottom: 4,
+  },
+  trendBar: { width: '100%', borderRadius: 4 },
   itemCard: {
     backgroundColor: colors.surface,
     marginHorizontal: 16,
@@ -157,9 +279,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.borderSubtle,
   },
-  itemCardSelected: {
-    borderColor: colors.text,
-  },
+  itemCardSelected: { borderColor: colors.text },
   itemHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 },
   itemInfo: { flexDirection: 'row', alignItems: 'center' },
   badgeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 },
