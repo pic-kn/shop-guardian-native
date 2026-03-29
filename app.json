@@ -13,7 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "廃棄商品のバーコードをスキャンするためにカメラを使用します。",
+        "NSLocationWhenInUseUsageDescription": "現在地の天気に合わせた発注推奨を行うために位置情報を使用します。"
+      }
     },
     "android": {
       "adaptiveIcon": {
