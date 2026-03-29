@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "shop-guardian-native",
-    "slug": "shop-guardian-native",
+    "name": "すてナビ（Sute-Navi）",
+    "slug": "sute-navi",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
