@@ -221,9 +221,13 @@ export default function SettingsScreen() {
         </View>
       </Modal>
 
-      {/* JAN Barcode Scanner — full-screen overlay */}
-      {isScanningJan && (
-        <View style={styles.scannerOverlay}>
+      {/* JAN Barcode Scanner — proper Modal */}
+      <Modal
+        visible={isScanningJan}
+        animationType="slide"
+        onRequestClose={() => setIsScanningJan(false)}
+      >
+        <View style={{ flex: 1 }}>
           <CameraView
             style={StyleSheet.absoluteFill}
             onBarcodeScanned={handleJanScanned}
@@ -237,7 +241,7 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      )}
+      </Modal>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -314,21 +318,8 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   submitBtnText: { color: colors.surface, fontSize: 16, fontWeight: '700' },
-  // Full-screen scanner
-  scannerOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 200,
-  },
   scannerUI: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.5)',
     alignItems: 'center',
     justifyContent: 'center',
