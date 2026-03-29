@@ -1,22 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Product, WasteLog, calculateContextualFactors, ContextualFactor, SAMPLE_PRODUCTS, SAMPLE_LOGS } from '../logic/LearningEngine';
+import { Product, WasteLog, ActualOrder, calculateContextualFactors, ContextualFactor, SAMPLE_PRODUCTS, SAMPLE_LOGS } from '../logic/LearningEngine';
 import { getCurrentLocationWeather, WeatherType, WEATHER_TYPES } from '../logic/WeatherService';
 
 interface AppContextProps {
   products: Product[];
   wasteLogs: WasteLog[];
+  actualOrders: ActualOrder[];
   storeConfig: any;
   weatherContext: { dayId: string; weatherId: string; weather?: WeatherType; dayType?: any };
   contextualFactors: Record<number, ContextualFactor>;
   apiStatus: 'loading' | 'success' | 'error' | 'manual';
-  
+
   setProducts: React.Dispatch<React.SetStateAction<Product[]>>;
   setWasteLogs: React.Dispatch<React.SetStateAction<WasteLog[]>>;
   setStoreConfig: React.Dispatch<React.SetStateAction<any>>;
   setWeatherId: (id: string) => void;
   refreshWeather: () => Promise<void>;
   addWasteLog: (log: Omit<WasteLog, 'id'>) => Promise<void>;
+  addActualOrder: (order: Omit<ActualOrder, 'id'>) => Promise<void>;
   addProduct: (product: Omit<Product, 'id'>) => Promise<void>;
   updateProduct: (id: number, product: Partial<Product>) => Promise<void>;
   deleteProduct: (id: number) => Promise<void>;
@@ -28,6 +30,7 @@ const STORAGE_KEYS = {
   products: '@sg_products_v3',
   logs: '@sg_logs_v3',
   config: '@sg_config_v3',
+  orders: '@sg_orders_v1',
 };
 
 const DAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
@@ -35,6 +38,7 @@ const DAY_IDS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [products, setProducts] = useState<Product[]>([]);
   const [wasteLogs, setWasteLogs] = useState<WasteLog[]>([]);
+  const [actualOrders, setActualOrders] = useState<ActualOrder[]>([]);
   const [storeConfig, setStoreConfig] = useState({ name: '○○店', setupDone: false });
   const [weatherId, setWeatherStateId] = useState('cloudy');
   const [apiStatus, setApiStatus] = useState<'loading' | 'success' | 'error' | 'manual'>('loading');
@@ -64,6 +68,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
         if (storedConfig) {
           setStoreConfig(JSON.parse(storedConfig));
         }
+
+        const storedOrders = await AsyncStorage.getItem(STORAGE_KEYS.orders);
+        if (storedOrders) {
+          setActualOrders(JSON.parse(storedOrders));
+        }
       } catch (e) {
         console.error('Failed to load data', e);
       } finally {
@@ -78,7 +87,8 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     AsyncStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
     AsyncStorage.setItem(STORAGE_KEYS.logs, JSON.stringify(wasteLogs));
     AsyncStorage.setItem(STORAGE_KEYS.config, JSON.stringify(storeConfig));
-  }, [products, wasteLogs, storeConfig, isReady]);
+    AsyncStorage.setItem(STORAGE_KEYS.orders, JSON.stringify(actualOrders));
+  }, [products, wasteLogs, storeConfig, actualOrders, isReady]);
 
   const refreshWeather = async () => {
     setApiStatus('loading');
@@ -115,6 +125,11 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
     setWasteLogs(prev => [newLog, ...prev]);
   };
 
+  const addActualOrder = async (order: Omit<ActualOrder, 'id'>) => {
+    const newOrder = { ...order, id: Date.now() };
+    setActualOrders(prev => [newOrder, ...prev]);
+  };
+
   const addProduct = async (product: Omit<Product, 'id'>) => {
     const newProduct = { ...product, id: Date.now() };
     setProducts(prev => [newProduct, ...prev]);
@@ -130,9 +145,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
 
   return (
     <AppContext.Provider value={{
-      products, wasteLogs, storeConfig, weatherContext, contextualFactors, apiStatus,
+      products, wasteLogs, actualOrders, storeConfig, weatherContext, contextualFactors, apiStatus,
       setProducts, setWasteLogs, setStoreConfig, setWeatherId, refreshWeather,
-      addWasteLog, addProduct, updateProduct, deleteProduct
+      addWasteLog, addActualOrder, addProduct, updateProduct, deleteProduct
     }}>
       {children}
     </AppContext.Provider>

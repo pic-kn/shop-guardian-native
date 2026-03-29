@@ -1,27 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/typography';
 import { useAppContext } from '../context/AppContext';
 import ListSection from '../components/ListSection';
 import ListItem from '../components/ListItem';
-import Badge from '../components/Badge';
-import { Package, Shield, AlertCircle, CheckCircle2, RefreshCw, Sun, Cloud, CloudRain, CloudSnow, CloudLightning } from 'lucide-react-native';
+import { Package, Shield, CheckCircle2, RefreshCw, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, Minus, Plus } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
+import { calculateSyncRate } from '../logic/LearningEngine';
 
 export default function HomeScreen() {
-  const { 
-    products, 
-    contextualFactors, 
-    weatherContext, 
-    apiStatus, 
+  const {
+    products,
+    contextualFactors,
+    weatherContext,
+    apiStatus,
     refreshWeather,
-    setWeatherId
+    actualOrders,
+    addActualOrder,
   } = useAppContext();
 
   const [filter, setFilter] = useState<'key' | 'all'>('key');
   const [refreshing, setRefreshing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  // Per-product quantity adjustments (productId -> qty)
+  const [adjustments, setAdjustments] = useState<Record<number, number>>({});
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -31,12 +34,50 @@ export default function HomeScreen() {
 
   const displayProducts = filter === 'key' ? products.filter(p => p.isKeyItem) : products;
 
-  const totalQty = displayProducts.reduce((sum, p) => sum + (contextualFactors[p.id]?.recommended || p.baseOrder), 0);
+  // Resolve effective quantity: user adjustment if set, otherwise AI recommendation
+  const effectiveQty = (productId: number): number => {
+    if (adjustments[productId] !== undefined) return adjustments[productId];
+    return contextualFactors[productId]?.recommended || products.find(p => p.id === productId)?.baseOrder || 0;
+  };
+
+  const totalQty = displayProducts.reduce((sum, p) => sum + effectiveQty(p.id), 0);
   const totalCost = displayProducts.reduce((sum, p) => {
-    const qty = contextualFactors[p.id]?.recommended || p.baseOrder;
-    return sum + (qty * p.price * p.costRate);
+    const product = products.find(x => x.id === p.id)!;
+    return sum + effectiveQty(p.id) * product.price * product.costRate;
   }, 0);
   const totalSaving = Object.values(contextualFactors).reduce((sum, f) => sum + (f.saving || 0), 0);
+
+  const syncRate = calculateSyncRate(actualOrders.slice(0, 30));
+
+  const adjust = (productId: number, delta: number) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setAdjustments(prev => ({
+      ...prev,
+      [productId]: Math.max(0, (prev[productId] ?? (contextualFactors[productId]?.recommended || 0)) + delta),
+    }));
+  };
+
+  const handleConfirm = async () => {
+    if (confirmed) {
+      setConfirmed(false);
+      return;
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    for (const p of displayProducts) {
+      const ai = contextualFactors[p.id]?.recommended || p.baseOrder;
+      const actual = effectiveQty(p.id);
+      await addActualOrder({
+        date: todayStr,
+        productId: p.id,
+        aiRecommended: ai,
+        actualQty: actual,
+        dayId: weatherContext.dayId,
+        weatherId: weatherContext.weatherId,
+      });
+    }
+    setConfirmed(true);
+  };
 
   const renderKPI = (label: string, value: string, color: string = colors.text) => (
     <View style={styles.kpiCard}>
@@ -46,14 +87,14 @@ export default function HomeScreen() {
   );
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.textSecondary} />}
     >
       {/* Weather Header */}
       <View style={styles.weatherHeader}>
         <View style={styles.weatherInfo}>
-          <View style={[styles.productIconCircle, { width: 48, height: 48, backgroundColor: colors.surface }]}>
+          <View style={[styles.iconCircle, { width: 48, height: 48, backgroundColor: colors.surface }]}>
             {(() => {
               const iconName = weatherContext.weather?.icon;
               if (iconName === 'Sun') return <Sun size={28} color={colors.text} />;
@@ -73,7 +114,7 @@ export default function HomeScreen() {
             </View>
           </View>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onRefresh();
@@ -89,6 +130,7 @@ export default function HomeScreen() {
         {renderKPI('発注数', `${totalQty}個`)}
         {renderKPI('コスト', `¥${Math.round(totalCost).toLocaleString()}`)}
         {renderKPI('削減見込', `¥${totalSaving.toLocaleString()}`, colors.success)}
+        {renderKPI('同期率', `${syncRate}%`, syncRate >= 80 ? colors.success : colors.warning)}
       </View>
 
       {/* Guardian Alert */}
@@ -96,19 +138,19 @@ export default function HomeScreen() {
         <Shield size={16} color={colors.text} style={{ marginRight: 8 }} />
         <Text style={[typography.bodySecondary, { flex: 1 }]}>
           {weatherContext.dayType?.label}曜日 × {weatherContext.weather?.label} の発注推奨。
-          データが蓄積されるほど精度が向上します。
+          数量を調整して確定すると、AIが学習します。
         </Text>
       </View>
 
       {/* Filter Tabs */}
       <View style={styles.filterTabs}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setFilter('key')}
           style={[styles.filterTab, filter === 'key' && styles.filterTabActive]}
         >
           <Text style={[styles.filterTabText, filter === 'key' && styles.filterTabTextActive]}>重点管理</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => setFilter('all')}
           style={[styles.filterTab, filter === 'all' && styles.filterTabActive]}
         >
@@ -125,24 +167,27 @@ export default function HomeScreen() {
         ) : (
           displayProducts.map((p, index) => {
             const cf = contextualFactors[p.id];
-            const recQty = cf?.recommended || p.baseOrder;
-            const diff = recQty - p.baseOrder;
-            
+            const aiQty = cf?.recommended || p.baseOrder;
+            const qty = effectiveQty(p.id);
+            const diff = qty - p.baseOrder;
+            const isAdjusted = adjustments[p.id] !== undefined && adjustments[p.id] !== aiQty;
+
             return (
               <ListItem
                 key={p.id}
                 icon={Package}
                 title={p.name}
-                subtitle={`${cf?.confidence || 'データ不足'} (信頼度)`}
+                subtitle={`AI推奨: ${aiQty}個 ${isAdjusted ? '(調整済)' : `(${cf?.confidence || 'データ不足'})`}`}
                 isLast={index === displayProducts.length - 1}
                 rightComponent={
-                  <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={typography.h2}>{recQty}</Text>
-                    {diff !== 0 && (
-                      <Text style={[typography.caption, { color: diff < 0 ? colors.success : colors.warning }]}>
-                        {diff < 0 ? `↓${Math.abs(diff)}削減` : `↑${diff}増加`}
-                      </Text>
-                    )}
+                  <View style={styles.qtyAdjuster}>
+                    <TouchableOpacity onPress={() => adjust(p.id, -1)} style={styles.adjBtn}>
+                      <Minus size={14} color={colors.text} />
+                    </TouchableOpacity>
+                    <Text style={[typography.h2, { minWidth: 36, textAlign: 'center' }]}>{qty}</Text>
+                    <TouchableOpacity onPress={() => adjust(p.id, 1)} style={styles.adjBtn}>
+                      <Plus size={14} color={colors.text} />
+                    </TouchableOpacity>
                   </View>
                 }
               />
@@ -152,17 +197,14 @@ export default function HomeScreen() {
       </ListSection>
 
       {/* Confirm Button */}
-      <TouchableOpacity 
+      <TouchableOpacity
         style={[styles.confirmBtn, confirmed && styles.confirmBtnDone]}
-        onPress={() => {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-          setConfirmed(!confirmed);
-        }}
+        onPress={handleConfirm}
       >
         {confirmed ? (
           <>
             <CheckCircle2 size={20} color={colors.surface} style={{ marginRight: 8 }} />
-            <Text style={styles.confirmBtnText}>発注確定済み</Text>
+            <Text style={styles.confirmBtnText}>発注確定済み（タップで取消）</Text>
           </>
         ) : (
           <>
@@ -171,7 +213,7 @@ export default function HomeScreen() {
           </>
         )}
       </TouchableOpacity>
-      
+
       <View style={{ height: 40 }} />
     </ScrollView>
   );
@@ -191,16 +233,16 @@ const styles = StyleSheet.create({
   weatherStatusRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
   refreshBtn: {
-    width: 40, height: 40, borderRadius: 20, 
-    backgroundColor: colors.surface, 
+    width: 40, height: 40, borderRadius: 20,
+    backgroundColor: colors.surface,
     alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1, borderColor: colors.borderSubtle
+    borderWidth: 1, borderColor: colors.borderSubtle,
   },
-  kpiRow: { 
-    flexDirection: 'row', 
-    paddingHorizontal: 16, 
-    gap: 8, 
-    marginVertical: 12 
+  kpiRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    gap: 8,
+    marginVertical: 12,
   },
   kpiCard: {
     flex: 1,
@@ -241,17 +283,14 @@ const styles = StyleSheet.create({
     shadowRadius: 2,
     elevation: 2,
   },
-  filterTabText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.textSecondary,
-  },
-  filterTabTextActive: {
-    color: colors.text,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
+  filterTabText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  filterTabTextActive: { color: colors.text },
+  emptyContainer: { padding: 40, alignItems: 'center' },
+  qtyAdjuster: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  adjBtn: {
+    width: 28, height: 28, borderRadius: 14,
+    backgroundColor: colors.borderSubtle,
+    alignItems: 'center', justifyContent: 'center',
   },
   confirmBtn: {
     flexDirection: 'row',
@@ -263,22 +302,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginTop: 8,
   },
-  confirmBtnDone: {
-    backgroundColor: colors.success,
-  },
-  confirmBtnText: {
-    color: colors.surface,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  productIconCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  confirmBtnDone: { backgroundColor: colors.success },
+  confirmBtnText: { color: colors.surface, fontSize: 16, fontWeight: '800' },
+  iconCircle: {
+    width: 40, height: 40, borderRadius: 20,
     backgroundColor: colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: colors.borderSubtle,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: colors.borderSubtle,
   },
 });

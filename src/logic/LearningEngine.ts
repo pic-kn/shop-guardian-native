@@ -1,3 +1,22 @@
+export interface ActualOrder {
+  id: number;
+  date: string;
+  productId: number;
+  aiRecommended: number;
+  actualQty: number;
+  dayId: string;
+  weatherId: string;
+}
+
+export const calculateSyncRate = (actualOrders: ActualOrder[]): number => {
+  if (actualOrders.length === 0) return 100;
+  const diffs = actualOrders.map(o =>
+    Math.abs(o.actualQty - o.aiRecommended) / Math.max(o.aiRecommended, 1)
+  );
+  const avgDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+  return Math.round(Math.max(0, (1 - avgDiff) * 100));
+};
+
 export interface Product {
   id: number;
   jan: string;
